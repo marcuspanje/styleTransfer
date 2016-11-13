@@ -29,7 +29,7 @@ imsz = net.meta.normalization.imageSize;
 
 
 %generate white noise image;
-im0 = generateWhiteNoisImage(imsz);
+im0 = generateWhiteNoiseImage(imsz);
 
 %Code outline for gradient descent across each layer. 
 %Please edit the outline as implementation changes.
