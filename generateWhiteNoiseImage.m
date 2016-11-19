@@ -1,4 +1,4 @@
-img = function generateWhiteNoiseImage(imgSize)
+function img =  generateWhiteNoiseImage(imgSize)
 %imgSize (w, h, d): vector with 3 values denoting the 
 %size of desired white noise image
 
