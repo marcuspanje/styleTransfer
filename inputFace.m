@@ -11,7 +11,8 @@ if loadMat
 end
 
 %images must be 244x244
-im = imread('img/khan.jpg');
+%im = imread('img/khan.jpg');
+im = imread('C:\229\styleTransfer\img\khan.jpg');
 %content
 imC = applyNet(im, net);
 
