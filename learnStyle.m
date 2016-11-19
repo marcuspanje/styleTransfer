@@ -29,8 +29,8 @@ imR = vl_simplenn(net, im0_);
 disp('generating new image');
 %reference layer
 figure(1);
-L = 3;
-gradNext = imR(L+1).x - imC(L+1).x;
+L = 2;
+gradNext = single(imR(L+1).x - imC(L+1).x);
 step = 0.01;%gradient des step size
 Niterations = 20;
 for iter = 1:Niterations
@@ -43,6 +43,8 @@ for iter = 1:Niterations
   end
 
   for layer = fliplr(1:L)
+      
+      
     type = net.layers{layer}.type;
     szYprev = size(imR(layer).x);
     grad = zeros(szYprev);
@@ -52,6 +54,7 @@ for iter = 1:Niterations
       pad = net.layers{layer}.pad;
       stride = net.layers{layer}.stride;
       Yprev = imR(layer).x;
+      
       [grad,~,~] = vl_nnconv(Yprev, weights, [], gradNext, ...
         'pad', pad, 'stride', stride);
 
@@ -82,7 +85,7 @@ for iter = 1:Niterations
     elseif strcmp(type, 'pool')
       %gradient = reluGD(pool) * graident;
     end 
-    gradNext = grad;
+    gradNext = single(grad);
 
   end %for each layer
 
