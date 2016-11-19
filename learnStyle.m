@@ -62,25 +62,22 @@ for iter = 1:Niterations
       %gradient = softmaxGD(params) * gradient;
     elseif strcmp(type, 'relu')
         
-
-        
         %DZDX = VL_NNRELU(X, DZDY)
-        
-%        DZDY = gradNext;
-        
-%        DZDY = zeros(szYprev(1), szYprev(2), szYprev(3));
-        
-        for i = 1:szYprev(1)
-            for j = 1:szYprev(2)
-                for k = 1:szYprev(3)
-                    if(imR(layer).x(i, j, k) < 0)
-                        grad(i, j, k) = gradNext(i, j, k);
-                    end
-                end
-            end
-        end
-        
-        %grad = vl_nnrelu(imR(L+1).x, DZDY);
+        grad = vl_nnrelu(imR(layer).x, gradNext);
+
+        %--------------------------------------------------        
+
+        %         for i = 1:szYprev(1)
+        %             for j = 1:szYprev(2)
+        %                 for k = 1:szYprev(3)
+        %                     if(imR(layer).x(i, j, k) < 0)
+        %                         grad(i, j, k) = gradNext(i, j, k);
+        %                     end
+        %                 end
+        %             end
+        %         end
+
+        %--------------------------------------------------        
       
     elseif strcmp(type, 'pool')
       %gradient = reluGD(pool) * graident;
