@@ -63,26 +63,8 @@ for iter = 1:Niterations
         elseif strcmp(type, 'softmax')
             %gradient = softmaxGD(params) * gradient;
         elseif strcmp(type, 'relu')
-            
-            
-            
             %DZDX = VL_NNRELU(X, DZDY)
-            
-            %        DZDY = gradNext;
-            
-            %        DZDY = zeros(szYprev(1), szYprev(2), szYprev(3));
-            
-            for i = 1:szYprev(1)
-                for j = 1:szYprev(2)
-                    for k = 1:szYprev(3)
-                        if(imR(layer).x(i, j, k) < 0)
-                            grad(i, j, k) = gradNext(i, j, k);
-                        end
-                    end
-                end
-            end
-            
-            %grad = vl_nnrelu(imR(L+1).x, DZDY);
+            grad = vl_nnrelu(imR(layer).x, gradNext);
             
         elseif strcmp(type, 'pool')
             %gradient = poolGD(pool) * graident;
@@ -94,6 +76,18 @@ for iter = 1:Niterations
         gradNext = single(grad);
         
     end %for each layer
+    
+    imR(1).x = imR(1).x - step*grad;
+    %reapply network on image
+    imR = vl_simplenn(net, imR(1).x);
+    
+    %calculate error by back-propagation
+    gradNext = imR(L+1).x - imC(L+1).x;
+    if mod(iter, 2) == 0
+        err = gradNext.^2;
+        err = sum(sum(sum(err)));
+        disp(sprintf('iteration %03d, err: %d', iter, err));
+    end
     
     imR(1).x = imR(1).x - step*grad;
     %reapply network on image
