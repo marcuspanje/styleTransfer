@@ -1,11 +1,30 @@
 inputFace;
 %%% inputFace above %%%
+%replace path with location of vl_setupnn from matlabconvnet package
+run('~/code/matconvnet-1.0-beta21/matlab/vl_setupnn');
+%load weights of the trained vgg-face network
+%this repo does not store the mat file. It can be obtianed from:
+%http://www.vlfeat.org/matconvnet/pretrained/
+loadNet = 0;
+if loadNet
+  net = load('vgg-face.mat');
+  net = vl_simplenn_tidy(net);
+end
+avgImg = net.meta.normalization.averageImage; 
+
+%images must be 244x244
+im = imread('img/khan.jpg');
+%content
+im_ = bsxfun(@minus, single(im), avgImg) ;
+imC = vl_simplenn(net, im_);
 
 %generate white noise image;
 imsz = net.meta.normalization.imageSize;
 im0 = generateWhiteNoiseImage(imsz);
 %generated image
-imR =  applyNet(im0, net); 
+im0_ = bsxfun(@minus,single(im0),avgImg) ;
+  %apply network on layer
+imR = vl_simplenn(net, im0_);
 
 disp('generating new image');
 %reference layer
@@ -51,7 +70,7 @@ for iter = 1:Niterations
   imR = vl_simplenn(net, imR(1).x);
 end % for each iteration
 
-imRDisp= uint8(bsxfun(@plus, imR(1).x, net.meta.normalization.averageImage));
+imRDisp= uint8(bsxfun(@plus, imR(1).x, avgImg));
 figure(1);
 subplot(121);
 imshow(im); %original image
