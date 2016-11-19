@@ -67,6 +67,19 @@ for iter = 1:Niterations
       %gradient = softmaxGD(params) * gradient;
     elseif strcmp(type, 'relu')
       %gradient = reluGD(params) * gradient;
+      
+        for i = 1:szYprev(1)
+            for j = 1:szYprev(2)
+                for k = 1:szYprev(3)
+                    if(gradNext(i, j, k) < 0)
+                        grad(i, j, k) = 1;
+                    else
+                        grad(i, j, k) = 0;
+                    end
+                end
+            end
+        end
+      
     elseif strcmp(type, 'pool')
       %gradient = reluGD(pool) * graident;
     end 
