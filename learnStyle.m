@@ -1,9 +1,10 @@
 %%% inputFace above %%%
 %replace path with location of vl_setupnn from matlabconvnet package
-run('~/code/matconvnet-1.0-beta21/matlab/vl_setupnn');
+%run('~/code/matconvnet-1.0-beta21/matlab/vl_setupnn');
 %load weights of the trained vgg-face network
 %this repo does not store the mat file. It can be obtianed from:
 %http://www.vlfeat.org/matconvnet/pretrained/
+setup;
 loadNet = 0;
 if loadNet
   net = load('vgg-face.mat');
