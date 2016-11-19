@@ -1,23 +1,18 @@
 inputFace;
+%%% inputFace above %%%
+
 %generate white noise image;
 imsz = net.meta.normalization.imageSize;
 im0 = generateWhiteNoiseImage(imsz);
 %generated image
 imR =  applyNet(im0, net); 
 
-%Code outline for gradient descent across each layer. 
-%Please edit the outline as implementation changes.
-%im0 should be updated until it matches the content of the image
-%above applied to the trained network
-
-%entering gradient descent
-
+disp('generating new image');
 %reference layer
-figure(1);
 L = 1;
 gradNext = imR(L+1).x - imC(L+1).x;
-step = 0.01;
-Niterations = 10;
+step = 0.01;%gradient des step size
+Niterations = 20;
 for iter = 1:Niterations
   %calculate error by back-propagation
   gradNext = imR(L+1).x - imC(L+1).x;
@@ -34,34 +29,11 @@ for iter = 1:Niterations
 
     if strcmp(type, 'conv')
       weights = net.layers{layer}.weights{1};
-      szW = size(weights);
       pad = net.layers{layer}.pad;
-      padYprev = zeros(szYprev + 2*pad);
-      padYprev(pad+1:pad+szYprev(1), pad+1:pad+szYprev(2), ...
-        pad+1:pad+szYprev(3)) = imR(layer).x; 
-      
-      for i = 1:szYprev(1)
-        for j = 1:szYprev(2)
-          for k = 1:szYprev(3)
-
-            for filter = 1:szW(4)
-              for a = 0:szW(1)-1
-                for b = 0:szW(2)-1
-                  for c = 0:szW(3)-1
-                    %if out of bounds, continue
-                    p = i-a; q = j-b; r = k-c;
-                    if p <= 0 || q <= 0 || r<= 0
-                      continue;
-                    end
-                    grad(i,j,k) = grad(i,j,k) + ...
-                      gradNext(p,q,r) * weights(a+1,b+1,c+1,filter); 
-                  end
-                end
-              end
-            end
-          end
-        end
-      end
+      stride = net.layers{layer}.stride;
+      Yprev = imR(layer).x;
+      [grad,~,~] = vl_nnconv(Yprev, weights, [], gradNext, ...
+        'pad', pad, 'stride', stride);
 
     elseif strcmp(type, 'softmax')
       %gradient = softmaxGD(params) * gradient;
@@ -79,10 +51,11 @@ for iter = 1:Niterations
   imR = vl_simplenn(net, imR(1).x);
 end % for each iteration
 
-figure(2);
+imRDisp= uint8(bsxfun(@plus, imR(1).x, net.meta.normalization.averageImage));
+figure(1);
 subplot(121);
-imshow(imC(1).x);
+imshow(im); %original image
 title('reference');
 subplot(122);
-imshow(imR(1).x);
+imshow(imRDisp);
 title('generated');
