@@ -1,4 +1,3 @@
-inputFace;
 %%% inputFace above %%%
 %replace path with location of vl_setupnn from matlabconvnet package
 run('~/code/matconvnet-1.0-beta21/matlab/vl_setupnn');
