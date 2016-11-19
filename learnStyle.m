@@ -14,7 +14,7 @@ imR =  applyNet(im0, net);
 
 %reference layer
 figure(1);
-L = 1;
+L = 3;
 gradNext = imR(L+1).x - imC(L+1).x;
 step = 0.01;
 Niterations = 10;
@@ -32,7 +32,7 @@ for iter = 1:Niterations
     szYprev = size(imR(layer).x);
     grad = zeros(szYprev);
 
-    if strcmp(type, 'conv')
+     if strcmp(type, 'conv')
       weights = net.layers{layer}.weights{1};
       szW = size(weights);
       pad = net.layers{layer}.pad;
@@ -66,19 +66,26 @@ for iter = 1:Niterations
     elseif strcmp(type, 'softmax')
       %gradient = softmaxGD(params) * gradient;
     elseif strcmp(type, 'relu')
-      %gradient = reluGD(params) * gradient;
-      
+        
+
+        
+        %DZDX = VL_NNRELU(X, DZDY)
+        
+%        DZDY = gradNext;
+        
+%        DZDY = zeros(szYprev(1), szYprev(2), szYprev(3));
+        
         for i = 1:szYprev(1)
             for j = 1:szYprev(2)
                 for k = 1:szYprev(3)
-                    if(gradNext(i, j, k) < 0)
-                        grad(i, j, k) = 1;
-                    else
-                        grad(i, j, k) = 0;
+                    if(imR(layer).x(i, j, k) < 0)
+                        grad(i, j, k) = gradNext(i, j, k);
                     end
                 end
             end
         end
+        
+        %grad = vl_nnrelu(imR(L+1).x, DZDY);
       
     elseif strcmp(type, 'pool')
       %gradient = reluGD(pool) * graident;
