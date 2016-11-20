@@ -5,7 +5,7 @@
 %this repo does not store the mat file. It can be obtianed from:
 %http://www.vlfeat.org/matconvnet/pretrained/
 setup;
-loadNet = 0;
+loadNet = 1;
 if loadNet
     net = load('vgg-face.mat');
     net = vl_simplenn_tidy(net);
@@ -13,10 +13,16 @@ end
 avgImg = net.meta.normalization.averageImage;
 
 %images must be 244x244
+
+% load content image
 im = imread('img/khan.jpg');
-%content
-im_ = bsxfun(@minus, single(im), avgImg) ;
+im_ = bsxfun(@minus, single(im), avgImg);
 imC = vl_simplenn(net, im_);
+
+% load style image
+im = imread('img/vg5.jpg');
+im_ = bsxfun(@minus, single(im), avgImg);
+imS = vl_simplenn(net, im_);
 
 %generate white noise image;
 imsz = net.meta.normalization.imageSize;
@@ -30,18 +36,27 @@ disp('generating new image');
 %reference layer
 L = 10;
 
-step = 0.00001;%gradient des step size
-Niterations = 50;
+
+step = 0.001;      %gradient des step size
+Niterations = 20;
+%calculate error by back-propagation
 for iter = 1:Niterations
-    %calculate error by back-propagation
-    gradNext = imR(L+1).x - imC(L+1).x;
+    % recompute gradNext ----------------------
+    % equ(6) in 'Gatys_Image_Style_Transfer_CVPR_2016_paper'
+    [h0,w0,d0] = size(imR(L+1).x);
+    F = to2D(imC(L+1).x);
+    G = Gram(F);
+    A = Gram(to2D(imS(L+1).x));
+    gradNext = (1/(h0*w0*d0)^2)*F'*(G-A)';
+    gradNext(find(F<0))=0;
+    gradNext = single(toND(gradNext,h0,w0));
+    %------------------------------------------
     if mod(iter, 5) == 0
         err = gradNext.^2;
         err = sum(sum(sum(err)));
         disp(sprintf('iteration %03d, err: %d', iter, err));
     end
-    
-    %for layer = fliplr(1:L)
+   
     for layer = fliplr(1:L)
         type = net.layers{layer}.type;
         szYprev = size(imR(layer).x);
@@ -71,6 +86,7 @@ for iter = 1:Niterations
             grad = vl_nnpool(Yprev,pool,gradNext, 'stride', stride);
             
         end
+        
         gradNext = single(grad);
         
     end %for each layer
