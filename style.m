@@ -34,11 +34,11 @@ imR = vl_simplenn(net, im0_);
 
 disp('generating new image');
 %reference layer
-L = 20;
+L = 15;
 
 
 step = 0.001;      %gradient des step size
-Niterations = 120;
+Niterations = 25;
 %calculate error by back-propagation
 for iter = 1:Niterations
     
@@ -46,7 +46,16 @@ for iter = 1:Niterations
     % equ(6) in 'Gatys_Image_Style_Transfer_CVPR_2016_paper'
     gradSum = zeros(size(imR(1).x));
     for l=1:L
-        
+        w_l = 1/3;
+        % need to revise weight for different L
+        % L>27 -> w_l = 1/5
+        % L<27 && L>20 -> w_l = 1/4
+        % L<20 && L >13 -> w_l = 1/3
+        % L<13 && L>8 -> w_l = 1/2
+        % L<8 -> w_l = 1
+        if(~(l==2||l==7||l==12||l==19||l==26))
+            continue;
+        end %if
         [h0,w0,d0] = size(imR(l+1).x);
         F = to2D(imC(l+1).x);
         G = Gram(F);
@@ -90,7 +99,7 @@ for iter = 1:Niterations
             
         end %for each layer
         
-        gradSum = single(gradSum + grad);
+        gradSum = single(gradSum + w_l*grad);
         
     end %l - for suming L_layer
     %------------------------------------------
