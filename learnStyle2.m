@@ -92,22 +92,25 @@ for iter = 1:Niterations
         gradNext = single(grad);
         
     end %for each layer
+    standard update
+    imR(1).x = imR(1).x - step*grad;
+
+
     %momentum update
     %v = gamma*v + step*grad; 
     %imR(1).x = imR(1).x - v;
 
-    %standard update
-    %imR(1).x = imR(1).x - step*grad;
 
 
     %adaGrad update
-
+%{
     grad2 = grad.^2;
     gradSum = gammaAda*gradPrev2 + (1-gammaAda)*grad2;
     newStep = step./sqrt(gradSum+gradSumEps);
     imR(1).x = imR(1).x - newStep.*grad;
      
     gradPrev2 = grad2;
+%}
 
 
     %reapply network on image
