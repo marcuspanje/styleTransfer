@@ -28,43 +28,42 @@ imR = vl_simplenn(net, im0_);
 
 disp('generating new image');
 %reference layer
-figure(1);
-L = 6;
+L = 29;
 gradNext = single(imR(L+1).x - imC(L+1).x);
-step = 0.01;%gradient des step size
-Niterations = 20;
+gradInit = single(imR(L+1).x - imC(L+1).x);
+step = 0.1;%gradient des step size
+Niterations = 50;
 for iter = 1:Niterations
     %calculate error by back-propagation
     gradNext = imR(L+1).x - imC(L+1).x;
-    if mod(iter, 2) == 0
+    if mod(iter, 5) == 0
         err = gradNext.^2;
         err = sum(sum(sum(err)));
         disp(sprintf('iteration %03d, err: %d', iter, err));
     end
     
+    %for layer = fliplr(1:L)
     for layer = fliplr(1:L)
-        
-        
         type = net.layers{layer}.type;
         szYprev = size(imR(layer).x);
         grad = zeros(szYprev);
-        
         Yprev = single(imR(layer).x);
+
         if strcmp(type, 'conv')
             weights = net.layers{layer}.weights{1};
-            
-            
+            bias = net.layers{layer}.weights{2};
             pad = net.layers{layer}.pad;
             stride = net.layers{layer}.stride;
             
-            [grad,~,~] = vl_nnconv(Yprev, weights, [], gradNext, ...
+            [grad,~,~] = vl_nnconv(Yprev, weights, bias, gradNext, ...
                 'pad', pad, 'stride', stride);
             
         elseif strcmp(type, 'softmax')
             %gradient = softmaxGD(params) * gradient;
         elseif strcmp(type, 'relu')
             %DZDX = VL_NNRELU(X, DZDY)
-            grad = vl_nnrelu(imR(layer).x, gradNext);
+            %grad = vl_nnrelu(imR(layer).x, gradNext);
+            grad = vl_nnrelu(Yprev, gradNext);
             
         elseif strcmp(type, 'pool')
             %gradient = poolGD(pool) * graident;
@@ -76,18 +75,6 @@ for iter = 1:Niterations
         gradNext = single(grad);
         
     end %for each layer
-    
-    imR(1).x = imR(1).x - step*grad;
-    %reapply network on image
-    imR = vl_simplenn(net, imR(1).x);
-    
-    %calculate error by back-propagation
-    gradNext = imR(L+1).x - imC(L+1).x;
-    if mod(iter, 2) == 0
-        err = gradNext.^2;
-        err = sum(sum(sum(err)));
-        disp(sprintf('iteration %03d, err: %d', iter, err));
-    end
     
     imR(1).x = imR(1).x - step*grad;
     %reapply network on image
