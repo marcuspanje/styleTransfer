@@ -37,7 +37,7 @@ disp('generating new image');
 L = 15;
 
 
-step = 0.00000000001;      %gradient des step size
+step = 0.00000001;      %gradient des step size
 Niterations = 25;
 %calculate error by back-propagation
 for iter = 1:Niterations
