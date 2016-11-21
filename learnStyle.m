@@ -4,6 +4,7 @@
 %load weights of the trained vgg-face network
 %this repo does not store the mat file. It can be obtianed from:
 %http://www.vlfeat.org/matconvnet/pretrained/
+
 setup;
 loadNet = 0;
 if loadNet
@@ -16,35 +17,34 @@ avgImg = net.meta.normalization.averageImage;
 im = imread('img/khan.jpg');
 %content
 im_ = bsxfun(@minus, single(im), avgImg) ;
-imC = vl_simplenn(net, im_);
+imContent = vl_simplenn(net, im_);
 
 %generate white noise image;
 imsz = net.meta.normalization.imageSize;
-%im0 = generateWhiteNoiseImage(imsz);
-im0 = imread('img/whitenoise.jpg');
+im0 = generateWhiteNoiseImage(imsz);
 %generated image
 im0_ = bsxfun(@minus,single(im0),avgImg) ;
 %apply network on layer
-imR = vl_simplenn(net, im0_);
+imNew = vl_simplenn(net, im0_);
 
 disp('generating new image');
-%reference layer
-<<<<<<< HEAD
-L = 10;
-step = 0.00001;%gradient des step size
-Niterations = 50;
+L = 27;
+Niterations = 20;
 
+nParams = sum(size(imNew(L+1).x));
 
-nParams = sum(size(imR(L+1).x));
-step = 0.1;%gradient des step size
-gamma = 0.6; %momentum
+%record error every [plotInterval] timesteps
 plotInterval = 3;
-Niterations = 30;
-%err is the index of iteratoin to plot
 plotIndices = plotInterval:plotInterval:Niterations;
 err = zeros(length(plotIndices), 1);
 plotI = 1;
+
+%std gradient descent params
+step = 0.1;
+%grad descent with momentum params
+gamma = 0.6; 
 v = 0;
+%grad descent with adadelta params
 gradSum = zeros(size(im));
 gradSumEps = 1e-5;
 gammaAda = 0.8;
@@ -52,26 +52,20 @@ gradPrev2 = zeros(size(im));
 
 for iter = 1:Niterations
     %calculate error by back-propagation
-    gradNext = imR(L+1).x - imC(L+1).x;
+    gradNext = imNew(L+1).x - imContent(L+1).x;
     if iter == plotIndices(plotI) 
       err(plotI) = sum(sum(sum(gradNext.^2))) ./ nParams;
       disp(sprintf('iteration %03d, err: %.1f', iter, err(plotI)));
-      plotI = plotI + 1;
+      if plotI < length(plotIndices)
+        plotI = plotI + 1;
+      end
     end
-%{
-    if mod(iter, 5) == 0
-        err = gradNext.^2;
-        err = sum(sum(sum(err)));
-        disp(sprintf('iteration %03d, err: %d', iter, err));
-    end
-%}
     
-    %for layer = fliplr(1:L)
     for layer = fliplr(1:L)
         type = net.layers{layer}.type;
-        szYprev = size(imR(layer).x);
+        szYprev = size(imNew(layer).x);
         grad = zeros(szYprev);
-        Yprev = single(imR(layer).x);
+        Yprev = single(imNew(layer).x);
 
         if strcmp(type, 'conv')
             weights = net.layers{layer}.weights{1};
@@ -84,7 +78,6 @@ for iter = 1:Niterations
             
         elseif strcmp(type, 'relu')
             %DZDX = VL_NNRELU(X, DZDY)
-            %grad = vl_nnrelu(imR(layer).x, gradNext);
             grad = vl_nnrelu(Yprev, gradNext);
             
         elseif strcmp(type, 'pool')
@@ -96,35 +89,33 @@ for iter = 1:Niterations
         gradNext = single(grad);
         
     end %for each layer
-    %momentum update
-    %v = gamma*v + step*grad; 
-    %imR(1).x = imR(1).x - v;
 
     %standard update
-    %imR(1).x = imR(1).x - step*grad;
+    %imNew(1).x = imNew(1).x - step*grad;
 
+    %momentum update
+    v = gamma*v + step*grad; 
+    imNew(1).x = imNew(1).x - v;
 
     %adaGrad update
-
-    grad2 = grad.^2;
-    gradSum = gammaAda*gradPrev2 + (1-gammaAda)*grad2;
-    newStep = step./sqrt(gradSum+gradSumEps);
-    imR(1).x = imR(1).x - newStep.*grad;
-     
-    gradPrev2 = grad2;
+    %grad2 = grad.^2;
+    %gradSum = gammaAda*gradPrev2 + (1-gammaAda)*grad2;
+    %newStep = step./sqrt(gradSum+gradSumEps);
+    %imNew(1).x = imNew(1).x - newStep.*grad;
+    %gradPrev2 = grad2;
 
 
     %reapply network on image
-    imR = vl_simplenn(net, imR(1).x);
+    imNew = vl_simplenn(net, imNew(1).x);
 end % for each iteration
 
-imRDisp= uint8(bsxfun(@plus, imR(1).x, avgImg));
+imNewDisp= uint8(bsxfun(@plus, imNew(1).x, avgImg));
 figure(1);
 subplot(121);
 imshow(im); %original image
 title('reference');
 subplot(122);
-imshow(imRDisp);
+imshow(imNewDisp);
 title('generated');
 
 figure(2);
