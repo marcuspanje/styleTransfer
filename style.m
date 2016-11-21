@@ -5,7 +5,7 @@
 %this repo does not store the mat file. It can be obtianed from:
 %http://www.vlfeat.org/matconvnet/pretrained/
 setup;
-loadNet = 1;
+loadNet = 0;
 if loadNet
     net = load('vgg-face.mat');
     net = vl_simplenn_tidy(net);
@@ -34,64 +34,83 @@ imR = vl_simplenn(net, im0_);
 
 disp('generating new image');
 %reference layer
-L = 10;
+L = 15;
 
 
 step = 0.001;      %gradient des step size
-Niterations = 20;
+Niterations = 25;
 %calculate error by back-propagation
 for iter = 1:Niterations
+    
     % recompute gradNext ----------------------
     % equ(6) in 'Gatys_Image_Style_Transfer_CVPR_2016_paper'
-    [h0,w0,d0] = size(imR(L+1).x);
-    F = to2D(imC(L+1).x);
-    G = Gram(F);
-    A = Gram(to2D(imS(L+1).x));
-    gradNext = (1/(h0*w0*d0)^2)*F'*(G-A)';
-    gradNext(find(F<0))=0;
-    gradNext = single(toND(gradNext,h0,w0));
+    gradSum = zeros(size(imR(1).x));
+    for l=1:L
+        w_l = 1/3;
+        % need to revise weight for different L
+        % L>27 -> w_l = 1/5
+        % L<27 && L>20 -> w_l = 1/4
+        % L<20 && L >13 -> w_l = 1/3
+        % L<13 && L>8 -> w_l = 1/2
+        % L<8 -> w_l = 1
+        if(~(l==2||l==7||l==12||l==19||l==26))
+            continue;
+        end %if
+        [h0,w0,d0] = size(imR(l+1).x);
+        F = to2D(imC(l+1).x);
+        G = Gram(F);
+        A = Gram(to2D(imS(l+1).x));
+        gradNext = (1/(h0*w0*d0)^2)*(F'*(G-A))';
+        gradNext(find(F<0))=0;
+        gradNext = single(toND(gradNext,h0,w0));
+        
+        % BP
+        for layer = fliplr(1:l)
+            type = net.layers{layer}.type;
+            szYprev = size(imR(layer).x);
+            grad = zeros(szYprev);
+            Yprev = single(imR(layer).x);
+            
+            if strcmp(type, 'conv')
+                weights = net.layers{layer}.weights{1};
+                bias = net.layers{layer}.weights{2};
+                pad = net.layers{layer}.pad;
+                stride = net.layers{layer}.stride;
+                
+                [grad,~,~] = vl_nnconv(Yprev, weights, bias, gradNext, ...
+                    'pad', pad, 'stride', stride);
+                
+            elseif strcmp(type, 'softmax')
+                %gradient = softmaxGD(params) * gradient;
+            elseif strcmp(type, 'relu')
+                %DZDX = VL_NNRELU(X, DZDY)
+                %grad = vl_nnrelu(imR(layer).x, gradNext);
+                grad = vl_nnrelu(Yprev, gradNext);
+                
+            elseif strcmp(type, 'pool')
+                %gradient = poolGD(pool) * graident;
+                pool = net.layers{layer}.pool;
+                stride = net.layers{layer}.stride;
+                grad = vl_nnpool(Yprev,pool,gradNext, 'stride', stride);
+                
+            end
+            
+            gradNext = single(grad);
+            
+        end %for each layer
+        
+        gradSum = single(gradSum + w_l*grad);
+        
+    end %l - for suming L_layer
     %------------------------------------------
-    if mod(iter, 5) == 0
-        err = gradNext.^2;
-        err = sum(sum(sum(err)));
+%     if mod(iter, 2) == 0
+        err = gradSum.^2;
+        err = sum(err(:));
         disp(sprintf('iteration %03d, err: %d', iter, err));
-    end
-   
-    for layer = fliplr(1:L)
-        type = net.layers{layer}.type;
-        szYprev = size(imR(layer).x);
-        grad = zeros(szYprev);
-        Yprev = single(imR(layer).x);
-
-        if strcmp(type, 'conv')
-            weights = net.layers{layer}.weights{1};
-            bias = net.layers{layer}.weights{2};
-            pad = net.layers{layer}.pad;
-            stride = net.layers{layer}.stride;
-            
-            [grad,~,~] = vl_nnconv(Yprev, weights, bias, gradNext, ...
-                'pad', pad, 'stride', stride);
-            
-        elseif strcmp(type, 'softmax')
-            %gradient = softmaxGD(params) * gradient;
-        elseif strcmp(type, 'relu')
-            %DZDX = VL_NNRELU(X, DZDY)
-            %grad = vl_nnrelu(imR(layer).x, gradNext);
-            grad = vl_nnrelu(Yprev, gradNext);
-            
-        elseif strcmp(type, 'pool')
-            %gradient = poolGD(pool) * graident;
-            pool = net.layers{layer}.pool;
-            stride = net.layers{layer}.stride;
-            grad = vl_nnpool(Yprev,pool,gradNext, 'stride', stride);
-            
-        end
-        
-        gradNext = single(grad);
-        
-    end %for each layer
+%     end
+    %       --------------------------------------------
     
-    imR(1).x = imR(1).x - step*grad;
+    imR(1).x = imR(1).x - step*gradSum;
     %reapply network on image
     imR = vl_simplenn(net, imR(1).x);
 end % for each iteration
