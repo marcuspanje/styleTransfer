@@ -42,6 +42,8 @@ Niterations = 25;
 %calculate error by back-propagation
 for iter = 1:Niterations
     
+    style_error = 0;
+    
     % recompute gradNext ----------------------
     % equ(6) in 'Gatys_Image_Style_Transfer_CVPR_2016_paper'
     gradSum = zeros(size(imR(1).x));
@@ -57,7 +59,9 @@ for iter = 1:Niterations
             continue;
         end %if
         [h0,w0,d0] = size(imR(l+1).x);
-        F = to2D(imC(l+1).x);
+        
+        %F = to2D(imC(l+1).x);
+        F = to2D(imR(l+1).x);
         G = Gram(F);
         A = Gram(to2D(imS(l+1).x));
         gradNext = (1/(h0*w0*d0)^2)*(F'*(G-A))';
@@ -101,12 +105,18 @@ for iter = 1:Niterations
         
         gradSum = single(gradSum + w_l*grad);
         
+        %Error for layer l, equation 4
+        style_error = style_error + LayerStyleError(G, A, h0, w0);
+        
     end %l - for suming L_layer
+   
+    
     %------------------------------------------
 %     if mod(iter, 2) == 0
         err = gradSum.^2;
         err = sum(err(:));
         disp(sprintf('iteration %03d, err: %d', iter, err));
+        disp(sprintf('iteration %03d, style_error: %d', iter, style_error));        
 %     end
     %       --------------------------------------------
     
