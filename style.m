@@ -34,10 +34,11 @@ imNew = vl_simplenn(net, im0_);
 
 disp('generating new image');
 
-Niterations = 25;
+Niterations = 10;
 
 %std gradient descent params
-step = 0.000001;
+step = 0.00000001;      %gradient des step size
+
 %grad descent with momentum params
 %gamma = 0.7; 
 v = 0;
@@ -45,9 +46,6 @@ v = 0;
 %calculate error by back-propagation
 desiredLayers = [3 8 13 20 27];
 desiredLayerWeights = [1 1/2 1/2 1/4 1/5];
-%desiredLayers = [27];
-%desiredLayerWeights = [1];
-
 
 %record error every [plotInterval] timesteps
 plotInterval = 1;
@@ -62,19 +60,20 @@ for iter = 1:Niterations
     % equ(6) in 'Gatys_Image_Style_Transfer_CVPR_2016_paper'
     gradSum = zeros(size(imNew(1).x));
     count = 1;
-    errSum = 0;
+    style_error = 0;
     for l = desiredLayers
+
         w_l = desiredLayers(count);
         count = count + 1;
         [h0,w0,d0] = size(imNew(l+1).x);
         F = to2D(imNew(l+1).x);
+    
         G = Gram(F);
         A = Gram(to2D(imStyle(l+1).x));
         gradNext = (1/(h0*w0*d0)^2)*(F'*(G-A))';
         gradNext(find(F<0))=0;
         gradNext = single(toND(gradNext,h0,w0));
-        sqGA = (G-A).^2;
-        errSum = errSum + w_l/(4*w0*h0) * sum(sum(sqGA));
+
         % BP
         for layer = fliplr(1:l)
             type = net.layers{layer}.type;
@@ -108,14 +107,15 @@ for iter = 1:Niterations
         
         gradSum = single(gradSum + w_l*grad);
         
+        %Error for layer l, equation 4
+        style_error = style_error + w_l*LayerStyleError(G, A, h0, w0);
+        
     end %l - for suming L_layer
-    %------------------------------------------
-%     if mod(iter, 2) == 0
-       % err = gradSum.^2;
-       % err = sum(err(:));
-       % disp(sprintf('iteration %03d, err: %d', iter, err));
-%     end
-    %       --------------------------------------------
+   
+    
+     if mod(iter, 2) == 0
+        disp(sprintf('iteration %03d, style_error: %d', iter, style_error));        
+     end
     
     %standard update
     imNew(1).x = imNew(1).x - step*gradSum;
@@ -129,7 +129,7 @@ for iter = 1:Niterations
 
     % record error if desired
     if iter == plotIndices(plotI) 
-      err(plotI) =  errSum;
+      err(plotI) =  style_error;
       disp(sprintf('iteration %03d, err: %.1f', iter, err(plotI)));
       if plotI < length(plotIndices)
         plotI = plotI + 1;
