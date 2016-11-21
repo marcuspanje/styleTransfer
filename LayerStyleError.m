@@ -1,5 +1,5 @@
 function err = LayerStyleError(G, A, nParams)
-    diff = G - A;
+    diff = gather(G - A);
 
     [err, ~] = sumsqr(diff);
 

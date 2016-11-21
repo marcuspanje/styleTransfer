@@ -10,6 +10,7 @@ loadNet = 0;
 if loadNet
     net = load('vgg-face.mat');
     net = vl_simplenn_tidy(net);
+    net = vl_simplenn_move(net, 'gpu');
 end
 avgImg = net.meta.normalization.averageImage;
 
@@ -17,7 +18,7 @@ avgImg = net.meta.normalization.averageImage;
 im = imread('img/khan.jpg');
 %content
 im_ = bsxfun(@minus, single(im), avgImg) ;
-imContent = vl_simplenn(net, im_);
+imContent = vl_simplenn(net, gpuArray(im_));
 
 %generate white noise image;
 imsz = net.meta.normalization.imageSize;
@@ -25,7 +26,7 @@ im0 = generateWhiteNoiseImage(imsz);
 %generated image
 im0_ = bsxfun(@minus,single(im0),avgImg) ;
 %apply network on layer
-imNew = vl_simplenn(net, im0_);
+imNew = vl_simplenn(net, gpuArray(im0_));
 
 disp('generating new image');
 L = 27;
@@ -49,12 +50,13 @@ gradSum = zeros(size(im));
 gradSumEps = 1e-5;
 gammaAda = 0.2;
 gradPrev2 = zeros(size(im));
+imUpdategpu = gpuArray(imNew(1).x);
 tic;
 for iter = 1:Niterations
     %calculate error by back-propagation
     gradNext = imNew(L+1).x - imContent(L+1).x;
     if iter == plotIndices(plotI) 
-      err(plotI) = sum(sum(sum(gradNext.^2))) ./ nParams;
+      err(plotI) = gather(sum(sum(sum(gradNext.^2)))) ./ nParams;
       disp(sprintf('iteration %03d, err: %.1f', iter, err(plotI)));
       if plotI < length(plotIndices)
         plotI = plotI + 1;
@@ -64,7 +66,7 @@ for iter = 1:Niterations
     for layer = fliplr(1:L)
         type = net.layers{layer}.type;
         szYprev = size(imNew(layer).x);
-        grad = zeros(szYprev);
+        grad = zeros(szYprev, 'gpuArray');
         Yprev = single(imNew(layer).x);
 
         if strcmp(type, 'conv')
@@ -91,7 +93,8 @@ for iter = 1:Niterations
     end %for each layer
 
     %standard update
-    imNew(1).x = imNew(1).x - step*grad;
+    %imNew(1).x = imNew(1).x - step*gather(grad);
+    imUpdategpu = imUpdategpu - step*(grad);
 
     %momentum update
     %v = gamma*v + step*grad; 
@@ -106,11 +109,11 @@ for iter = 1:Niterations
 
 
     %reapply network on image
-    imNew = vl_simplenn(net, imNew(1).x);
+    imNew = vl_simplenn(net, imUpdategpu);
 end % for each iteration
 toc;
 
-imNewDisp= uint8(bsxfun(@plus, imNew(1).x, avgImg));
+imNewDisp= uint8(bsxfun(@plus, gather(imUpdategpu), avgImg));
 figure(1);
 subplot(121);
 imshow(im); %original image
