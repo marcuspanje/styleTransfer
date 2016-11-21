@@ -37,7 +37,7 @@ disp('generating new image');
 Niterations = 25;
 
 %std gradient descent params
-step = 0.01;
+step = 0.000001;
 %grad descent with momentum params
 %gamma = 0.7; 
 v = 0;
@@ -118,11 +118,11 @@ for iter = 1:Niterations
     %       --------------------------------------------
     
     %standard update
-    %imNew(1).x = imNew(1).x - step*gradSum;
+    imNew(1).x = imNew(1).x - step*gradSum;
 
     %momentum update
-    v = gamma*v + step*gradSum;
-    imNew(1).x = imNew(1).x - v;
+    %v = gamma*v + step*gradSum;
+    %imNew(1).x = imNew(1).x - v;
 
     %reapply network on image
     imNew = vl_simplenn(net, imNew(1).x);
