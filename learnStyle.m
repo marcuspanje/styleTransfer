@@ -37,7 +37,7 @@ disp('generating new image');
 Niterations = 10;
 
 %std gradient descent params
-step = 0.00000001;      %gradient des step size
+step = 0.0001;      %gradient des step size
 
 %grad descent with momentum params
 %gamma = 0.7; 
@@ -130,7 +130,6 @@ for iter = 1:Niterations
     % record error if desired
     if iter == plotIndices(plotI) 
       err(plotI) =  style_error;
-      disp(sprintf('iteration %03d, err: %.1f', iter, err(plotI)));
       if plotI < length(plotIndices)
         plotI = plotI + 1;
       end
