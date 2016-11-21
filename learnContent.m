@@ -40,14 +40,14 @@ err = zeros(length(plotIndices), 1);
 plotI = 1;
 
 %std gradient descent params
-step = 0.1;
+step = 0.01;
 %grad descent with momentum params
 gamma = 0.6; 
 v = 0;
 %grad descent with adadelta params
 gradSum = zeros(size(im));
 gradSumEps = 1e-5;
-gammaAda = 0.8;
+gammaAda = 0.2;
 gradPrev2 = zeros(size(im));
 
 for iter = 1:Niterations
@@ -91,11 +91,11 @@ for iter = 1:Niterations
     end %for each layer
 
     %standard update
-    %imNew(1).x = imNew(1).x - step*grad;
+    imNew(1).x = imNew(1).x - step*grad;
 
     %momentum update
-    v = gamma*v + step*grad; 
-    imNew(1).x = imNew(1).x - v;
+    %v = gamma*v + step*grad; 
+    %imNew(1).x = imNew(1).x - v;
 
     %adaGrad update
     %grad2 = grad.^2;

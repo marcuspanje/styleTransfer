@@ -15,9 +15,9 @@ avgImg = net.meta.normalization.averageImage;
 %images must be 244x244
 
 % load content image
-im = imread('img/khan.jpg');
-im_ = bsxfun(@minus, single(im), avgImg);
-imContent = vl_simplenn(net, im_);
+%im = imread('img/khan.jpg');
+%im_ = bsxfun(@minus, single(im), avgImg);
+%imContent = vl_simplenn(net, im_);
 
 % load style image
 im = imread('img/vg5.jpg');
@@ -34,18 +34,19 @@ imNew = vl_simplenn(net, im0_);
 
 disp('generating new image');
 
-Niterations = 10;
+Niterations = 50;
 
 %std gradient descent params
 step = 0.0001;      %gradient des step size
 
 %grad descent with momentum params
-%gamma = 0.7; 
+gamma = 0.7; 
 v = 0;
 
 %calculate error by back-propagation
-desiredLayers = [3 8 13 20 27];
-desiredLayerWeights = [1 1/2 1/2 1/4 1/5];
+%desiredLayers = [3 8 13 20 27];
+desiredLayers = [20 27];
+desiredLayerWeights = [1/2 1/2];
 
 %record error every [plotInterval] timesteps
 plotInterval = 1;
@@ -63,14 +64,15 @@ for iter = 1:Niterations
     style_error = 0;
     for l = desiredLayers
 
-        w_l = desiredLayers(count);
+        w_l = desiredLayerWeights(count);
         count = count + 1;
         [h0,w0,d0] = size(imNew(l+1).x);
+        nParams = h0*w0*d0;
         F = to2D(imNew(l+1).x);
     
         G = Gram(F);
         A = Gram(to2D(imStyle(l+1).x));
-        gradNext = (1/(h0*w0*d0)^2)*(F'*(G-A))';
+        gradNext = (1/nParams^2)*(F'*(G-A))';
         gradNext(find(F<0))=0;
         gradNext = single(toND(gradNext,h0,w0));
 
@@ -108,14 +110,14 @@ for iter = 1:Niterations
         gradSum = single(gradSum + w_l*grad);
         
         %Error for layer l, equation 4
-        style_error = style_error + w_l*LayerStyleError(G, A, h0, w0);
+        style_error = style_error + w_l*LayerStyleError(G, A, nParams);
         
     end %l - for suming L_layer
    
     
-     if mod(iter, 2) == 0
+     %if mod(iter, 2) == 0
         disp(sprintf('iteration %03d, style_error: %d', iter, style_error));        
-     end
+     %end
     
     %standard update
     imNew(1).x = imNew(1).x - step*gradSum;
