@@ -1,2 +1,9 @@
-size(padYprev(pad+1:pad+szYprev(1), pad+1:pad+szYprev(2), ...
-  pad+1:szYprev(3))) 
+
+A = zeros(2,2,3);
+A(:, :, 1) = [1 2; 3 4];
+A(:, :, 2) = A(:, :, 1) + 1;
+A(:, :, 3) = A(:, :, 2) + 1;
+
+A2d = to2D(A);
+
+A3D = toND(A2d, 2, 2)
