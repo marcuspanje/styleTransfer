@@ -1,5 +1,6 @@
 imNewDisp= uint8(gather(bsxfun(@plus, imNew(1).x, avgImg)));
 imwrite(imNewDisp, 'img.jpg');
+save('data.mat', 'imNewDisp', 'im', 'err', 'plotIndices', 'errContent', 'errStyle');
 figure(1);
 subplot(121);
 imshow(im); %original image

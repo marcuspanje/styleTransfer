@@ -34,7 +34,7 @@ Niterations = 20;
 nParams = sum(size(imNew(L+1).x));
 
 %record error every [plotInterval] timesteps
-plotInterval = 3;
+plotInterval = 1;
 plotIndices = plotInterval:plotInterval:Niterations;
 err = zeros(length(plotIndices), 1);
 plotI = 1;
