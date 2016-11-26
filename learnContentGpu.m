@@ -89,7 +89,6 @@ for iter = 1:Niterations
       end
     end
 end % for each iteration
-toc;
 
 imNewDisp= uint8(bsxfun(@plus, gather(imNew(1).x), avgImg));
 imwrite(imNewDisp, 'img.jpg');
