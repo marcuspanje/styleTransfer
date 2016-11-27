@@ -37,7 +37,7 @@ disp('generating new image');
 Niterations = 200;
 
 %std gradient descent params
-step = 0.01;      %gradient des step size
+step = 1;      %gradient des step size
 
 %grad descent with momentum params
 gamma = 0.7; 
@@ -60,6 +60,8 @@ mPrev = zerosGpu;
 vPrev = zerosGpu;
 beta1 = gpuArray(0.9);
 beta2 = gpuArray(0.999);
+beta1Power = gpuArray(1);
+beta2Power = gpuArray(1);
 epsilon = 1e-8;
 
 for iter = 1:Niterations
@@ -69,11 +71,6 @@ for iter = 1:Niterations
     gradSum = zerosGpu;
     style_error = gpuArray(0);
 
-    %grad descent with adadelta params
-    gradSum = zeros(size(im));
-    gradSumEps = 1e-5;
-    gammaAda = 0.2;
-    gradPrev2 = zeros(size(im));
     
     for layerI = 1:length(desiredLayers);
         l = desiredLayers(layerI);
@@ -84,13 +81,14 @@ for iter = 1:Niterations
         F = to2D(imNew(l+1).x);
         G = Gram(F);
         A = Gram(to2D(imStyle(l+1).x));
-        gradNext = (1/nParams^2)*(F'*(G-A))';
-        gradNext(find(F<0))=0;
+        diff = G-A;
+        gradNext = (1/nParams^2)*(F'*diff)';
+        gradNext(F<0)=0;
         gradNext = single(toND(gradNext,h0,w0));
         %apply backward pass
         imNewI = vl_simplenn(netI, imNew(1).x, gradNext, imNew, 'SkipForward', true);
         gradSum = gradSum + w_l*imNewI(1).dzdx; 
-        style_error = style_error + w_l*LayerStyleError(G, A, nParams);
+        style_error = style_error + w_l*sumsqr(diff)/(4*nParams^2);
     end
 
     %standard update
@@ -107,13 +105,14 @@ for iter = 1:Niterations
     %imNew(1).x = imNew(1).x - v;
 
     %ADAM updatee
-    gradSum2 = gradSum.^2;
     m = (beta1*mPrev + (1-beta1)*gradSum);
-    v = beta2*vPrev + (1-beta2)*gradSum2;
+    v = beta2*vPrev + (1-beta2)*gradSum.^2;
     mPrev = m;
     vPrev = v;
-    m = m/(1-beta1.^iter);
-    v = v/(1-beta2.^iter);
+    beta1Power = beta1Power * beta1;
+    beta2Power = beta2Power * beta2;
+    m = m/(1-beta1Power);
+    v = v/(1-beta2Power);
     update = m.*step./(sqrt(v)+epsilon);
     imNew(1).x = imNew(1).x - update;
 

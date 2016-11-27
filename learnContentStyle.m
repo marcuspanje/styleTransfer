@@ -39,7 +39,7 @@ disp('generating new image');
 Niterations = 10000;
 
 %std gradient descent params
-step = 10;      %gradient des step size
+step = 1;      %gradient des step size
 
 %grad descent with momentum params
 gamma = 0.7; 
@@ -57,13 +57,15 @@ errStyle = err;
 plotI = 1;
 zerosGpu = zeros(size(imNew(1).x), 'gpuArray');
 
-lambda = 0.4; % weightage of style
+lambda = 0.3; % weightage of style
 %ADAM parameters:
 mPrev = zerosGpu;
 vPrev = zerosGpu;
 beta1 = gpuArray(0.9);
 beta2 = gpuArray(0.999);
-epsilon = 1e-8;
+beta1Power = gpuArray(1);
+beta2Power = gpuArray(1);
+epsilon = gpuArray(1e-8);
 
 for iter = 1:Niterations
     
@@ -82,19 +84,24 @@ for iter = 1:Niterations
         F = to2D(imNew(l+1).x);
         G = Gram(F);
         A = Gram(to2D(imStyle(l+1).x));
-        gradNext = (1/nParams^2)*(F'*(G-A))';
-        gradNext(find(F<0))=0;
+        diffStyle = G-A;
+        gradNext = (1/nParams^2)*(F'*(diffStyle))';
+        gradNext(F<0)=0;
         gradNext = single(toND(gradNext,h0,w0));
         %apply backward pass
-        imNewI = vl_simplenn(netI, imNew(1).x, gradNext, imNew, 'SkipForward', true);
-        gradSum = gradSum + w_l*imNewI(1).dzdx; 
-        style_error = style_error + w_l*LayerStyleError(G, A, nParams);
+        gradStyle = backProp(net, l, imNew, gradNext);    
+
+        gradSum = gradSum + w_l*gradStyle; 
+        style_error = style_error + w_l*sumsqr(diffStyle)/(4*nParams^2);
     end
 
     %gradient for Content
-    gradNext = imNew(L+1).x - imContent(L+1).x;
+    diffContent = imNew(L+1).x - imContent(L+1).x;
+    gradNext = diffContent;
+    gradNext(imNew(L+1).x < 0) = 0;
     %back prop with our functions
     gradContent = backProp(net, L, imNew, gradNext);    
+
     grad = lambda*gradSum + (1-lambda)*gradContent;
 
     %standard update
@@ -115,8 +122,10 @@ for iter = 1:Niterations
     v = beta2*vPrev + (1-beta2)*(grad.^2);
     mPrev = m;
     vPrev = v;
-    m = m/(1-beta1.^iter);
-    v = v/(1-beta2.^iter);
+    beta1Power = beta1Power * beta1;
+    beta2Power = beta2Power * beta2;
+    m = m/(1-beta1Power);
+    v = v/(1-beta2Power);
     update = m.*step./(sqrt(v)+epsilon);
     imNew(1).x = imNew(1).x - update;
 
@@ -124,8 +133,7 @@ for iter = 1:Niterations
 
     % record error if desired
     if iter == plotIndices(plotI) 
-      errContent(plotI) = gather(sum(sum(sum(gradNext.^2))))./...
-        nParamsContent;
+      errContent(plotI) = gather(sumsqr(diffContent))/2;
       errStyle(plotI) = gather(style_error);
       err(plotI) =  lambda*errStyle(plotI) + ...
         (1-lambda)*errContent(plotI);

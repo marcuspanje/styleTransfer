@@ -1,7 +1,8 @@
 function err = LayerStyleError(G, A, nParams)
-    diff = gather(G - A);
+    diff = (G - A);
 
-    [err, ~] = sumsqr(diff);
+    [err, ~] = gather(sumsqr(diff));
 
-    err = err / (4 * nParams^2);
+    %err = err / (4 * nParams^2);
+    err = err / nParams;
 end

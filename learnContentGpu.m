@@ -32,9 +32,9 @@ im0_ = bsxfun(@minus,single(im0),avgImg) ;
 imNew = vl_simplenn(net, gpuArray(im0_));
 
 disp('generating new image');
-Niterations = 30;
+Niterations = 500;
 
-nParams = sum(size(imNew(L+1).x));
+nParams = prod(size(imNew(L+1).x));
 
 %record error every [plotInterval] timesteps
 plotInterval = 2;
@@ -45,7 +45,6 @@ plotI = 1;
 zerosGpu = zeros(size(imNew(1).x), 'gpuArray');
 
 %std gradient descent params
-%step = 0.1;
 step = 1;
 %grad descent with momentum params
 %gamma = 0.6; 
@@ -55,13 +54,15 @@ mPrev = zerosGpu;
 vPrev = zerosGpu;
 beta1 = gpuArray(0.9);
 beta2 = gpuArray(0.999);
-beta1Power = 1;
-beta2Power = 1;
-epsilon = 1e-8;
+beta1Power = gpuArray(1);
+beta2Power = gpuArray(1);
+epsilon = gpuArray(1e-8);
 
 for iter = 1:Niterations
     %calculate error by back-propagation
-    gradNext = imNew(L+1).x - imContent(L+1).x;
+    diff = imNew(L+1).x - imContent(L+1).x;
+    gradNext = diff;
+    gradNext(imNew(L+1).x < 0) = 0;
     %back prop with our functions
     grad = backProp(net, L, imNew, gradNext);    
 
@@ -97,7 +98,7 @@ for iter = 1:Niterations
 
     %plot if desired
     if iter == plotIndices(plotI) 
-      err(plotI) = gather(sum(sum(sum(gradNext.^2)))) ./ nParams;
+      err(plotI) = gather(sumsqr(diff))/2; 
       disp(sprintf('iteration %03d, err: %.1f', iter, err(plotI)));
       if plotI < length(plotIndices)
         plotI = plotI + 1;
