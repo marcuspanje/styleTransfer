@@ -32,12 +32,12 @@ im0_ = bsxfun(@minus,single(im0),avgImg) ;
 imNew = vl_simplenn(net, gpuArray(im0_));
 
 disp('generating new image');
-Niterations = 100;
+Niterations = 30;
 
 nParams = sum(size(imNew(L+1).x));
 
 %record error every [plotInterval] timesteps
-plotInterval = 3;
+plotInterval = 2;
 plotIndices = plotInterval:plotInterval:Niterations;
 err = zeros(length(plotIndices), 1);
 plotI = 1;
@@ -45,7 +45,8 @@ plotI = 1;
 zerosGpu = zeros(size(imNew(1).x), 'gpuArray');
 
 %std gradient descent params
-step = 0.01;
+%step = 0.1;
+step = 1;
 %grad descent with momentum params
 %gamma = 0.6; 
 %v = zerosGpu;
@@ -54,6 +55,8 @@ mPrev = zerosGpu;
 vPrev = zerosGpu;
 beta1 = gpuArray(0.9);
 beta2 = gpuArray(0.999);
+beta1Power = 1;
+beta2Power = 1;
 epsilon = 1e-8;
 
 for iter = 1:Niterations
@@ -68,7 +71,7 @@ for iter = 1:Niterations
     %%%%
 
     %%% standard update
-    imNew(1).x = imNew(1).x - step*(grad);
+    %imNew(1).x = imNew(1).x - step*(grad);
     %%%
 
     %%% momentum update
@@ -76,6 +79,18 @@ for iter = 1:Niterations
     %imNew(1).x = imNew(1).x - v;
     %%%
 
+    %ADAM updatee
+    m = (beta1*mPrev + (1-beta1)*grad);
+    v = beta2*vPrev + (1-beta2)*(grad.^2);
+    mPrev = m;
+    vPrev = v;
+    beta1Power = beta1Power * beta1;
+    beta2Power = beta2Power * beta2;
+    m = m/(1-beta1Power);
+    v = v/(1-beta2Power);
+    %stepCurrent = step/sqrt(iter);
+    update = m.*step./(sqrt(v)+epsilon);
+    imNew(1).x = imNew(1).x - update;
 
     %reapply network on image
     imNew = vl_simplenn(net, imNew(1).x);

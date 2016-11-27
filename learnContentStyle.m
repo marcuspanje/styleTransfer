@@ -39,7 +39,7 @@ disp('generating new image');
 Niterations = 10000;
 
 %std gradient descent params
-step = 0.01;      %gradient des step size
+step = 10;      %gradient des step size
 
 %grad descent with momentum params
 gamma = 0.7; 
