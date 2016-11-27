@@ -39,7 +39,7 @@ disp('generating new image');
 Niterations = 10000;
 
 %std gradient descent params
-step = 1;      %gradient des step size
+step = gpuArray(1);      %gradient des step size
 
 %grad descent with momentum params
 gamma = 0.7; 
@@ -49,6 +49,7 @@ v = 0;
 %desiredLayers = [3 8 13 20 27];
 
 %record error every [plotInterval] timesteps
+prevError = 0;
 plotInterval = 5;
 plotIndices = plotInterval:plotInterval:Niterations;
 err = zeros(length(plotIndices), 1);
@@ -57,7 +58,11 @@ errStyle = err;
 plotI = 1;
 zerosGpu = zeros(size(imNew(1).x), 'gpuArray');
 
-lambda = 0.3; % weightage of style
+styleWeight = gpuArray(0.001); % weightage of style
+contentWeight = gpuArray(1);
+totalWeight = styleWeight + contentWeight;
+styleWeight = styleWeight/totalWeight;
+contentWeight = contentWeight/totalWeight;
 %ADAM parameters:
 mPrev = zerosGpu;
 vPrev = zerosGpu;
@@ -102,7 +107,7 @@ for iter = 1:Niterations
     %back prop with our functions
     gradContent = backProp(net, L, imNew, gradNext);    
 
-    grad = lambda*gradSum + (1-lambda)*gradContent;
+    grad = styleWeight*gradSum + contentWeight*gradContent;
 
     %standard update
     %if iter > 1 && prev_style_error <= style_error
@@ -131,13 +136,21 @@ for iter = 1:Niterations
 
     imNew = vl_simplenn(net, imNew(1).x);
 
+    errContentI = sumsqr(diffContent)/2;
+    errStyleI = style_error; 
+    errTotalI = contentWeight*errContentI + styleWeight*errStyleI;
+
+    if iter > 500 && prevError < errTotalI
+      step = step/2
+    end
+    prevError = errTotalI;
+
     % record error if desired
     if iter == plotIndices(plotI) 
-      errContent(plotI) = gather(sumsqr(diffContent))/2;
-      errStyle(plotI) = gather(style_error);
-      err(plotI) =  lambda*errStyle(plotI) + ...
-        (1-lambda)*errContent(plotI);
-      disp(sprintf('iteration %03d, error: %.2f', iter, style_error));
+      errContent(plotI) = gather(errContentI);
+      errStyle(plotI) = gather(errStyleI);
+      err(plotI) = gather(errTotalI);
+      disp(sprintf('iteration %03d, error: %.2f', iter, errTotalI));
       if plotI < length(plotIndices)
         plotI = plotI + 1;
       end
