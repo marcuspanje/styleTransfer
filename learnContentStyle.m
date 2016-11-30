@@ -37,6 +37,7 @@ nParamsContent = sum(size(imNew(L+1).x));
 disp('generating new image');
 
 Niterations = 10000;
+annealFactor = gpuArray(0.8);
 
 %std gradient descent params
 step = gpuArray(1);      %gradient des step size
@@ -60,9 +61,11 @@ zerosGpu = zeros(size(imNew(1).x), 'gpuArray');
 
 styleWeight = gpuArray(0.001); % weightage of style
 contentWeight = gpuArray(1);
-totalWeight = styleWeight + contentWeight;
+sizeWeight = gpuArray(0.33);
+totalWeight = styleWeight + contentWeight + sizeWeight;
 styleWeight = styleWeight/totalWeight;
 contentWeight = contentWeight/totalWeight;
+sizeWeight = sizeWeight/totalWeight;
 %ADAM parameters:
 mPrev = zerosGpu;
 vPrev = zerosGpu;
@@ -71,6 +74,7 @@ beta2 = gpuArray(0.999);
 beta1Power = gpuArray(1);
 beta2Power = gpuArray(1);
 epsilon = gpuArray(1e-8);
+
 
 for iter = 1:Niterations
     
@@ -107,7 +111,12 @@ for iter = 1:Niterations
     %back prop with our functions
     gradContent = backProp(net, L, imNew, gradNext);    
 
-    grad = styleWeight*gradSum + contentWeight*gradContent;
+    %error to constraint size of values
+    gradSize = imNew(1).x;
+    errSizeI = 0.5*sumsqr(imNew(1).x);
+    
+
+    grad = styleWeight*gradSum + contentWeight*gradContent +  sizeWeight*gradSize;
 
     %standard update
     %if iter > 1 && prev_style_error <= style_error
@@ -134,16 +143,12 @@ for iter = 1:Niterations
     update = m.*step./(sqrt(v)+epsilon);
     imNew(1).x = imNew(1).x - update;
 
+
     imNew = vl_simplenn(net, imNew(1).x);
 
     errContentI = sumsqr(diffContent)/2;
     errStyleI = style_error; 
-    errTotalI = contentWeight*errContentI + styleWeight*errStyleI;
-
-    if iter > 500 && prevError < errTotalI
-      step = step/2
-    end
-    prevError = errTotalI;
+    errTotalI = contentWeight*errContentI + styleWeight*errStyleI + sizeWeight*errSizeI;
 
     % record error if desired
     if iter == plotIndices(plotI) 
@@ -154,6 +159,13 @@ for iter = 1:Niterations
       if plotI < length(plotIndices)
         plotI = plotI + 1;
       end
+
+      %anneal step
+      if iter > 500 && prevError < errTotalI
+        step = annealFactor*step;
+      end
+      prevError = errTotalI;
+
     end
 end % for each iteration
 

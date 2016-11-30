@@ -6,7 +6,7 @@
 %http://www.vlfeat.org/matconvnet/pretrained/
 
 setup;
-loadNet = 0;
+loadNet = 1;
 L = 27;
 
 if loadNet

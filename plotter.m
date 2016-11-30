@@ -1,6 +1,6 @@
-imNewDisp= uint8(gather(bsxfun(@plus, imNew(1).x, avgImg)));
-imContentDisp= uint8(gather(bsxfun(@plus, imContent(1).x, avgImg)));
-imStyleDisp= uint8(gather(bsxfun(@plus, imStyle(1).x, avgImg)));
+imNewDisp= (gather(bsxfun(@plus, imNew(1).x, avgImg)));
+imContentDisp= (gather(bsxfun(@plus, imContent(1).x, avgImg)));
+imStyleDisp= (gather(bsxfun(@plus, imStyle(1).x, avgImg)));
 %imwrite(imNewDisp, 'img.jpg');
 %save('data.mat', 'imNewDisp', 'im', 'err', 'plotIndices', 'errContent', 'errStyle');
 save('data.mat', 'imNewDisp', 'imContentDisp', 'imStyleDisp', 'err', 'plotIndices');
