@@ -4,7 +4,7 @@ desiredLayers = gpuArray([3 8 13 20 27]);
 desiredLayerWeights = gpuArray([1/5 1/5 1/5 1/5 1/5]);
 L = 27;
 
-loadNet = 0;
+loadNet = 1;
 if loadNet
     net = load('vgg-face.mat');
     net.layers(max(desiredLayers)+1:end) = [];
@@ -20,10 +20,25 @@ im = imread('img/khan.jpg');
 im_ = bsxfun(@minus, single(im), avgImg);
 imContent = vl_simplenn(net, gpuArray(im_));
 
-% load style image
-im = imread('img/vg5.jpg');
-im_ = bsxfun(@minus, single(im), avgImg);
-imStyle = vl_simplenn(net, gpuArray(im_));
+% load style images
+
+%styleImageList = ['img/vg5.jpg'; 'img/vg5.jpg']
+styleImageList = ['img/picassoStyle/picasso1.jpg';'img/picassoStyle/picasso2.jpg'];
+
+imStyles = [];
+numStyleImages = size(styleImageList, 1);
+
+for i = 1 : numStyleImages
+
+	im = imread(styleImageList(i,:));
+	im_ = bsxfun(@minus, single(im), avgImg);
+	imStyles = [imStyles; vl_simplenn(net, gpuArray(im_))];
+
+end
+
+%im = imread('img/vg5.jpg'); %make this other style image
+%im_ = bsxfun(@minus, single(im), avgImg);
+%imStyle2 = vl_simplenn(net, gpuArray(im_));
 
 %generate white noise image;
 imsz = net.meta.normalization.imageSize;
@@ -62,10 +77,13 @@ zerosGpu = zeros(size(imNew(1).x), 'gpuArray');
 styleWeight = gpuArray(0.001); % weightage of style
 contentWeight = gpuArray(1);
 sizeWeight = gpuArray(0.33);
+
 totalWeight = styleWeight + contentWeight + sizeWeight;
+
 styleWeight = styleWeight/totalWeight;
 contentWeight = contentWeight/totalWeight;
 sizeWeight = sizeWeight/totalWeight;
+
 %ADAM parameters:
 mPrev = zerosGpu;
 vPrev = zerosGpu;
@@ -92,9 +110,18 @@ for iter = 1:Niterations
         nParams = h0*w0*d0;
         F = to2D(imNew(l+1).x);
         G = Gram(F);
-        A = Gram(to2D(imStyle(l+1).x));
-        diffStyle = G-A;
-        gradNext = (1/nParams^2)*(F'*(diffStyle))';
+
+	diffStyle = zeros(size(G));
+
+	for sImage = 1 : numStyleImages
+		diffStyle = diffStyle + G - Gram(to2D(imStyles(sImage, l+1).x));
+	end
+
+        % A1 = Gram(to2D(imStyle1(l+1).x));
+ 	%A2 = Gram(to2D(imStyle2(l+1).x));
+        %diffStyle = (G-A1) + (G-A2);
+      
+	gradNext = (1/nParams^2)*(F'*(diffStyle))';
         gradNext(F<0)=0;
         gradNext = single(toND(gradNext,h0,w0));
         %apply backward pass

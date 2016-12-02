@@ -3,7 +3,7 @@ setup;
 desiredLayers = gpuArray([3 8 13 20 27]);
 desiredLayerWeights = gpuArray([1/5 1/5 1/5 1/5 1/5]);
 
-loadNet = 0;
+loadNet = 1;
 if loadNet
     net = load('vgg-face.mat');
     net.layers(max(desiredLayers)+1:end) = [];
