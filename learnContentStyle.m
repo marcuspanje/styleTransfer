@@ -42,7 +42,7 @@ imNew = vl_simplenn(net, gpuArray(im0_));
 
 disp('generating new image');
 
-Niterations = 1;
+Niterations = 100;
 %step decreases by annealFactor every so often
 annealFactor = gpuArray(0.7);
 
@@ -65,7 +65,7 @@ errStyle = err;
 plotI = 1;
 
 % style content size variation
-gradWeights = gpuArray([0.001 1 0 0]);
+gradWeights = gpuArray([0.001 1 1 1]);
 gradWeights = gradWeights ./ sum(gradWeights);
 
 %{ADAM parameters:
@@ -92,6 +92,10 @@ gradPrev = zeros(h*w*d,1,'gpuArray');
 
 
 for iter = 1:Niterations
+
+    if(iter > 2)
+        gradPrev = grad1d;
+    end %if
     
     %gradient for style:
     [gradStyle, style_error] = computeGradStyle(net, imNew, imStyle, ... 
@@ -166,7 +170,7 @@ for iter = 1:Niterations
     end %if
         
     if(iter >= 2 && iter<=(m+1))
-        q = grad1d
+        q = grad1d;
         y(:,iter-1) = grad1d - gradPrev;
         rou(iter-1) = 1/(y(:,iter-1)'*s(:,iter-1));
       
