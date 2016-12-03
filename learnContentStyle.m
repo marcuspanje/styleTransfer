@@ -220,7 +220,8 @@ for iter = 1:Niterations
     end
 end % for each iteration
 
-img = im2uint8(imNew(1).x);
+%im2uint8 scales images, so use uint8
+img = uint8(imNew(1).x);
 img = gather(img);
 save('img1.mat','img');
 
