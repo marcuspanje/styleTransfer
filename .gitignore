@@ -4,6 +4,7 @@ vgg-face.mat
 *.swp
 *.asv
 setup.m
+private
 private/*.mat
 private/*.png
 private/*.jpg
