@@ -63,8 +63,8 @@ plotIndices = plotInterval:plotInterval:Niterations;
 err = zeros(length(plotIndices), 1);
 plotI = 1;
 
-% style content size variation
-gradWeights = gpuArray([0.0005 1 0.05 0.1]);
+% [style content size variation]
+gradWeights = gpuArray([0.0005 0 0.05 0.1]);
 gradWeights = gradWeights ./ sum(gradWeights);
 
 
@@ -86,8 +86,8 @@ for iter = 1:Niterations
     gradStyle = zerosGpu;
     style_error = 0;
     for sImage = 1 : numStyleImages
-        [gradStyle_current, style_error_current] = computeGradStyle(net, imNew, imStyles(sImage,:), ... 
-              desiredLayers, desiredLayerWeights) ;
+        [gradStyle_current, style_error_current] = computeGradStyle(net, imNew, ...
+            imStyles(sImage,:), desiredLayers, desiredLayerWeights) ;
         gradStyle = gradStyle + gradStyle_current;
         style_error = style_error_current;
     end
@@ -191,13 +191,13 @@ for iter = 1:Niterations
 
     % record error if desired
     if iter == plotIndices(plotI) 
-      errContentI = 0.5*sumsqr(diffContent);
-      errStyleI = style_error; 
-      errSizeI = 0.5*sumsqr(gradSize);
-      errVariationI = 0.5*(sumsqr(shiftRight) + sumsqr(shiftDown));
+      errorsI = zeros(4, 1);
+      errorsI(1) = style_error; 
+      errorsI(2) = 0.5*sumsqr(diffContent);
+      errorsI(3) = 0.5*sumsqr(gradSize);
+      errorsI(4) = 0.5*(sumsqr(shiftRight) + sumsqr(shiftDown));%variation error
 
-      errTotalI = gradWeights(1)*errStyleI + gradWeights(2)*errContentI + ... 
-        gradWeights(3)*errSizeI  + gradWeights(4)*errVariationI;
+      errTotalI = gradWeights * errorsI; 
 
       err(plotI) = gather(errTotalI);
       disp(sprintf('iteration %03d, error: %.2f', iter, errTotalI));
