@@ -6,6 +6,7 @@ setup;
 %desired layers for style learning
 desiredLayers = gpuArray([3 8 13 20 27]);
 desiredLayerWeights = gpuArray([1/5 1/5 1/5 1/5 1/5]);
+lenDesiredLayers = length(desiredLayers);
 %layer for content learning
 L = 27;
 
@@ -22,22 +23,42 @@ avgImg = net.meta.normalization.averageImage;
 %images must be 244x244
 % load content image
 im = imread('img/others/chow.jpg');
-im_ = bsxfun(@minus, single(im), avgImg);
-imContent = vl_simplenn(net, gpuArray(im_));
+imContentScaled = bsxfun(@minus, single(im), avgImg);
+imContentNet = vl_simplenn(net, gpuArray(imContentScaled));
 imContentMean = gpuArray(mean(mean(im)) - avgImg); 
+%only keep Lth layer. 
+imContentNetL = imContentNet(L+1).x;
+clear imContentNet;
 
 % load style images
-%styleImageList = {'img/picasso/picasso1.jpg';'img/picasso/picasso2.jpg'};
 styleImageList = {'img/picasso/picasso1.jpg'};
-imStyles = [];
 numStyleImages = size(styleImageList, 1);
-for i = 1 : numStyleImages
+GramLayers = cell(lenDesiredLayers, 1);
+
+%for each style image, store only Gram matrices of desired layers
+%GramLayers stores the gram matrixes of desired layers of a single image
+%GramStyleList is an array of structures containing the GramLayers cells of each image
+%start from back to avoid array resizing of GramStyleList
+for i = fliplr(1 : numStyleImages)
 
 	im = imread(styleImageList{i});
-	im_ = bsxfun(@minus, single(im), avgImg);
-	imStyles = [imStyles; vl_simplenn(net, gpuArray(im_))];
+	imStyleScaled = bsxfun(@minus, single(im), avgImg);
+    imStyleNet = vl_simplenn(net, gpuArray(imStyleScaled));
 
+    for layerI = 1:lenDesiredLayers; 
+        l = desiredLayers(layerI);
+        GramLayers{layerI} = Gram(to2D(imStyleNet(l+1).x)); 
+    end
+
+    GramStyleList(i).GramLayers = GramLayers;
+
+    %display only style image 1
+    if i == 1
+        imStyleScaled1 = imStyleScaled;
+    end
 end
+
+clear imStyleNet;
 
 %generate white noise image;
 imsz = net.meta.normalization.imageSize(1:3);
@@ -87,7 +108,7 @@ for iter = 1:Niterations
     style_error = 0;
     for sImage = 1 : numStyleImages
         [gradStyle_current, style_error_current] = computeGradStyle(net, imNew, ...
-            imStyles(sImage,:), desiredLayers, desiredLayerWeights) ;
+            GramStyleList(sImage).GramLayers, desiredLayers, desiredLayerWeights) ;
         gradStyle = gradStyle + gradStyle_current;
         style_error = style_error_current;
     end
@@ -96,7 +117,7 @@ for iter = 1:Niterations
 	style_error = style_error / numStyleImages;
 
     %gradient for Content
-    diffContent = imNew(L+1).x - imContent(L+1).x;
+    diffContent = imNew(L+1).x - imContentNetL;
     gradNext = diffContent;
     gradNext(imNew(L+1).x < 0) = 0;
     %back prop with our functions
@@ -191,7 +212,7 @@ for iter = 1:Niterations
 
     % record error if desired
     if iter == plotIndices(plotI) 
-      errorsI = zeros(4, 1);
+      errorsI = zeros(4, 1, 'gpuArray');
       errorsI(1) = style_error; 
       errorsI(2) = 0.5*sumsqr(diffContent);
       errorsI(3) = 0.5*sumsqr(gradSize);
