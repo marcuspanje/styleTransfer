@@ -6,7 +6,6 @@ setup;
 %desired layers for style learning
 desiredLayers = gpuArray([3 8 13 20 27]);
 desiredLayerWeights = gpuArray([1/5 1/5 1/5 1/5 1/5]);
-lenDesiredLayers = length(desiredLayers);
 %layer for content learning
 L = 27;
 
@@ -23,42 +22,21 @@ avgImg = net.meta.normalization.averageImage;
 %images must be 244x244
 % load content image
 im = imread('img/others/chow.jpg');
-imContentScaled = bsxfun(@minus, single(im), avgImg);
-imContentNet = vl_simplenn(net, gpuArray(imContentScaled));
-imContentMean = gpuArray(mean(mean(im)) - avgImg); 
-%only keep Lth layer. 
-imContentNetL = imContentNet(L+1).x;
-clear imContentNet;
+im_ = bsxfun(@minus, single(im), avgImg);
+imContent = vl_simplenn(net, gpuArray(im_));
 
 % load style images
-styleImageList = {'img/picasso/picasso1.jpg'};
+%styleImageList = ['img/picasso/picasso1.jpg';'img/picassoStyle/picasso2.jpg'];
+styleImageList = ['img/picasso/picasso1.jpg'];
+imStyles = [];
 numStyleImages = size(styleImageList, 1);
-GramLayers = cell(lenDesiredLayers, 1);
+for i = 1 : numStyleImages
 
-%for each style image, store only Gram matrices of desired layers
-%GramLayers stores the gram matrixes of desired layers of a single image
-%GramStyleList is an array of structures containing the GramLayers cells of each image
-%start from back to avoid array resizing of GramStyleList
-for i = fliplr(1 : numStyleImages)
+	im = imread(styleImageList(i,:));
+	im_ = bsxfun(@minus, single(im), avgImg);
+	imStyles = [imStyles; vl_simplenn(net, gpuArray(im_))];
 
-	im = imread(styleImageList{i});
-	imStyleScaled = bsxfun(@minus, single(im), avgImg);
-    imStyleNet = vl_simplenn(net, gpuArray(imStyleScaled));
-
-    for layerI = 1:lenDesiredLayers; 
-        l = desiredLayers(layerI);
-        GramLayers{layerI} = Gram(to2D(imStyleNet(l+1).x)); 
-    end
-
-    GramStyleList(i).GramLayers = GramLayers;
-
-    %display only style image 1
-    if i == 1
-        imStyleScaled1 = imStyleScaled;
-    end
 end
-
-clear imStyleNet;
 
 %generate white noise image;
 imsz = net.meta.normalization.imageSize(1:3);
@@ -70,27 +48,37 @@ imNew = vl_simplenn(net, gpuArray(im0_));
 
 disp('generating new image');
 
-Niterations = 500;
+Niterations = 100;
 %step decreases by annealFactor every so often
-annealFactor = gpuArray(0.5);
+annealFactor = gpuArray(0.7);
 
 zerosGpu = zeros(size(imNew(1).x), 'gpuArray');
+%std gradient descent params
 
 
 %record error every [plotInterval] timesteps
 prevError = 0;
-plotInterval = 5;
+plotInterval = 1;
 plotIndices = plotInterval:plotInterval:Niterations;
 err = zeros(length(plotIndices), 1);
 plotI = 1;
 
-% [style content size variation]
-gradWeights = gpuArray([0.0005 0 0.05 0.1]);
+% style content size variation
+gradWeights = gpuArray([0.001 1 1 1]);
 gradWeights = gradWeights ./ sum(gradWeights);
 
+%{ADAM parameters:
+mPrev = zerosGpu;
+vPrev = zerosGpu;
+beta1 = gpuArray(0.9);
+beta2 = gpuArray(0.999);
+beta1Power = gpuArray(1);
+beta2Power = gpuArray(1);
+epsilon = gpuArray(1e-8);
+%}
 
 % l-bfgs parameters
-step = gpuArray(0.1); %gradient des step size
+step = gpuArray(0.1);      %gradient des step size
 [h,w,d] = size(imNew(1).x);
 m =gpuArray(5);
 s = zeros(h*w*d,m,'gpuArray');
@@ -102,26 +90,35 @@ gradPrev = zeros(h*w*d,1,'gpuArray');
 
 for iter = 1:Niterations
 
+    if(iter > 2)
+        gradPrev = grad1d;
+    end %if
     
     %gradient for style:
-    gradStyle = zerosGpu;
-    style_error = 0;
-    for sImage = 1 : numStyleImages
-        [gradStyle_current, style_error_current] = computeGradStyle(net, imNew, ...
-            GramStyleList(sImage).GramLayers, desiredLayers, desiredLayerWeights) ;
-        gradStyle = gradStyle + gradStyle_current;
-        style_error = style_error_current;
-    end
-	
-    gradStyle = gradStyle ./ numStyleImages;
+
+	gradStyle = zerosGpu;
+	style_error = 0;
+
+	for sImage = 1 : numStyleImages
+    		[gradStyle_current, style_error_current] = computeGradStyle(net, imNew, imStyles(sImage), ... 
+        		desiredLayers, desiredLayerWeights) ;
+
+		gradStyle = gradStyle + gradStyle_current;
+		style_error = style_error_current;
+
+	end
+
+	gradStyle = gradStyle / numStyleImages;
 	style_error = style_error / numStyleImages;
 
     %gradient for Content
-    diffContent = imNew(L+1).x - imContentNetL;
+    diffContent = imNew(L+1).x - imContent(L+1).x;
     gradNext = diffContent;
     gradNext(imNew(L+1).x < 0) = 0;
     %back prop with our functions
     gradContent = backProp(net, L, imNew, gradNext);    
+    %imNewI = vl_simplenn(net, imNew(1).x, gradNext, imNew, 'SkipForward', true);
+    %gradContent = imNewI(1).dzdx;
 
 
 %The following regularization errors are described in
@@ -130,7 +127,7 @@ for iter = 1:Niterations
 
     %error to limit size of values (avoid too large pixel values)
     %L(x(i,j)) = 0.5*x(i,j)^2 
-    gradSize = bsxfun(@minus, imNew(1).x, imContentMean);
+    gradSize = imNew(1).x;
 
     %error to limit variation between pixels (like low pass filter)
     %L(x(i,j)) = 0.5( (x(i,j+1)-x(i,j))^2 + (x(i+1,j)-x(i,j))^2 )
@@ -143,16 +140,39 @@ for iter = 1:Niterations
     grad = gradWeights(1)*gradStyle + gradWeights(2)*gradContent +  ...
       gradWeights(3)*gradSize + gradWeights(4)*gradVariation;
 
+    %standard update
+    %imNew(1).x = imNew(1).x - step*grad;
+
+    %momentum update
+    %v = gamma*v + step*grad; 
+    %imNew(1).x = imNew(1).x - v;
+
+    %ADAM updatee
+%{
+    m = (beta1*mPrev + (1-beta1)*grad);
+    v = beta2*vPrev + (1-beta2)*(grad.^2);
+    mPrev = m;
+    vPrev = v;
+    beta1Power = beta1Power * beta1;
+    beta2Power = beta2Power * beta2;
+    m = m/(1-beta1Power);
+    v = v/(1-beta2Power);
+    update = m.*step./(sqrt(v)+epsilon);
+    imNew(1).x = imNew(1).x - update;
+
+%}
 
 % ============== l-bfgs update =======================================================   
-    if(iter > 2)
-        gradPrev = grad1d;
-    end %if
    
     grad1d = mtx2vec(grad);
     imNew1D = mtx2vec(imNew(1).x);
     imPrev = imNew1D;
     
+%     % adjust step size
+%     if(iter > 1 && prev_style_error <= style_error)
+%         step = step/2
+%     end
+        
     if(iter==1)
         %standard update
         imNew(1).x = imNew(1).x - step*grad;  
@@ -212,13 +232,13 @@ for iter = 1:Niterations
 
     % record error if desired
     if iter == plotIndices(plotI) 
-      errorsI = zeros(4, 1, 'gpuArray');
-      errorsI(1) = style_error; 
-      errorsI(2) = 0.5*sumsqr(diffContent);
-      errorsI(3) = 0.5*sumsqr(gradSize);
-      errorsI(4) = 0.5*(sumsqr(shiftRight) + sumsqr(shiftDown));%variation error
+      errContentI = 0.5*sumsqr(diffContent);
+      errStyleI = style_error; 
+      errSizeI = 0.5*sumsqr(imNew(1).x);
+      errVariationI = 0.5*(sumsqr(shiftRight) + sumsqr(shiftDown));
 
-      errTotalI = gradWeights * errorsI; 
+      errTotalI = gradWeights(1)*errStyleI + gradWeights(2)*errContentI + ... 
+        gradWeights(3)*errSizeI  + gradWeights(4)*errVariationI;
 
       err(plotI) = gather(errTotalI);
       disp(sprintf('iteration %03d, error: %.2f', iter, errTotalI));
@@ -227,13 +247,8 @@ for iter = 1:Niterations
       end
 
       %anneal step
-      errDif  = prevError - errTotalI;
-      if iter > 50 && (errDif < 0)
+      if iter > 50 && prevError < errTotalI
         step = annealFactor*step
-        if step < 1e-6
-            disp('step is too small');
-            break;
-        end
       end
 
       prevError = errTotalI;
@@ -241,8 +256,7 @@ for iter = 1:Niterations
     end
 end % for each iteration
 
-%im2uint8 scales images, so use uint8
-img = uint8(imNew(1).x);
+img = im2uint8(imNew(1).x);
 img = gather(img);
 save('img1.mat','img');
 

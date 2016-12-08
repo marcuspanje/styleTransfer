@@ -1,10 +1,11 @@
-function [gradStyle, style_error] = computeGradStyle(net, imNew, imStyle, ...
+function [gradStyle, style_error] = computeGradStyle(net, imNew, GramLayers, ...
  desiredLayers, desiredLayerWeights)
 %compute the gradient of style error w.r.t input image
 %INPUT
 %net : pretrained neural network
 %imNew: activations of output image (initialized to white noise) at each layer of network
-%imStyle: activations of style image at each layer
+%GramLayers: cell of the gram matrix at desired layers.    
+%GramLayers{i} is gram matrix of desiredLayer(i)
 %desiredLayers: vector of desired layers
 %desiredLayerWeights: vector of desired layer weights
 %OUTPUT
@@ -24,7 +25,7 @@ function [gradStyle, style_error] = computeGradStyle(net, imNew, imStyle, ...
         nParams = h0*w0*d0;
         F = to2D(imNew(l+1).x);
         G = Gram(F);
-        A = Gram(to2D(imStyle(l+1).x));
+        A = GramLayers{layerI};
         diffStyle = G-A;
         gradNext = (1/nParams^2)*(F'*(diffStyle))';
         gradNext(F<0)=0;
