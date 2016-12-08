@@ -1,5 +1,5 @@
 vgg-face.mat
-*.mat
+data.mat
 *.swp
 *.asv
 setup.m
