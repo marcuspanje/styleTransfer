@@ -10,6 +10,10 @@ lenDesiredLayers = length(desiredLayers);
 %layer for content learning
 L = 27;
 
+%1 to use gradient style combination
+%0 to use eigenface style combination
+useGradientStyleCombination = 1;
+
 %load trained network
 if exist('net') ~= 1 
     disp('loading network');
@@ -134,19 +138,21 @@ for iter = 1:Niterations
     %gradient for style:
     gradStyle = zerosGpu;
     style_error = 0;
-%{
-    for sImage = 1 : numStyleImages
-        [gradStyle_current, style_error_current] = computeGradStyle(net, imNew, ...
-            GramStyleList(sImage).GramLayers, desiredLayers, desiredLayerWeights) ;
-        gradStyle = gradStyle + gradStyle_current;
-        style_error = style_error_current;
-    end
 
-    gradStyle = gradStyle ./ numStyleImages;
-	style_error = style_error / numStyleImages;
-%}
-    [gradStyle, style_error] = computeGradStyle(net, imNew, ...
-        EigenGramLayers, desiredLayers, desiredLayerWeights) ;
+    if(useGradientStyleCombination)
+        for sImage = 1 : numStyleImages
+            [gradStyle_current, style_error_current] = computeGradStyle(net, imNew, ...
+                GramStyleList(sImage).GramLayers, desiredLayers, desiredLayerWeights) ;
+            gradStyle = gradStyle + gradStyle_current;
+            style_error = style_error_current;
+        end
+
+        gradStyle = gradStyle ./ numStyleImages;
+         style_error = style_error / numStyleImages;
+    else
+        [gradStyle, style_error] = computeGradStyle(net, imNew, ...
+            EigenGramLayers, desiredLayers, desiredLayerWeights) ;
+    end
 
     %gradient for Content
     diffContent = imNew(L+1).x - imContentNetL;
