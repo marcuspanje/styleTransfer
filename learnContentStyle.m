@@ -22,7 +22,8 @@ avgImg = net.meta.normalization.averageImage;
 
 %images must be 244x244
 % load content image
-im = imread('img/others/chow.jpg');
+contentImage = 'img/others/chow.jpg';
+im = imread(contentImage);
 imContentScaled = bsxfun(@minus, single(im), avgImg);
 imContentNet = vl_simplenn(net, gpuArray(imContentScaled));
 imContentMean = gpuArray(mean(mean(im)) - avgImg); 
@@ -31,8 +32,8 @@ imContentNetL = imContentNet(L+1).x;
 clear imContentNet;
 
 % load style images
-styleImageList = {'img/picasso/picasso1.jpg'};
-numStyleImages = size(styleImageList, 1);
+styleImageList = {'img/vg/vg1.jpg', 'img/warhol/warhol5.jpg'};
+numStyleImages = length(styleImageList);
 GramLayers = cell(lenDesiredLayers, 1);
 
 %for each style image, store only Gram matrices of desired layers
@@ -59,6 +60,32 @@ for i = fliplr(1 : numStyleImages)
 end
 
 clear imStyleNet;
+EigenGramLayers = cell(lenDesiredLayers, 1);
+
+for layerI = 1:lenDesiredLayers
+
+  l = desiredLayers(layerI);
+  sz = size(GramStyleList(1).GramLayers{layerI});
+  GramVectorizedMat = zeros(sz(1)*sz(2), numStyleImages, 'gpuArray');
+  %Each column of GramVectorizedMat is the vectorized gram matrix
+  % for a layer in an image
+  for i = 1:numStyleImages
+    GramVectorizedMat(:, i) = ...
+        reshape(GramStyleList(i).GramLayers{layerI}, sz(1)*sz(2), 1);
+  end
+  meanGram = mean(GramVectorizedMat, 2); 
+  GramVectorizedMat = bsxfun(@minus, GramVectorizedMat, meanGram);
+  stdGram = std(GramVectorizedMat, [], 2);
+  GramVectorizedMat = bsxfun(@rdivide, GramVectorizedMat, stdGram);
+
+  [U, S, ~] = svd(GramVectorizedMat, 'econ');
+
+  principal = U(:, 1) .* stdGram + meanGram;
+  EigenGramLayers{layerI} = reshape(principal, sz(1), sz(2));
+  
+
+end
+
 
 %generate white noise image;
 imsz = net.meta.normalization.imageSize(1:3);
@@ -85,9 +112,10 @@ err = zeros(length(plotIndices), 1);
 plotI = 1;
 
 % [style content size variation]
-gradWeights = gpuArray([0.0005 0 0.05 0.1]);
+gradWeights = gpuArray([0.0005 1 0.05 0.1]);
 gradWeights = gradWeights ./ sum(gradWeights);
 
+tolerance = 1e-5;
 
 % l-bfgs parameters
 step = gpuArray(0.1); %gradient des step size
@@ -106,15 +134,19 @@ for iter = 1:Niterations
     %gradient for style:
     gradStyle = zerosGpu;
     style_error = 0;
+%{
     for sImage = 1 : numStyleImages
         [gradStyle_current, style_error_current] = computeGradStyle(net, imNew, ...
             GramStyleList(sImage).GramLayers, desiredLayers, desiredLayerWeights) ;
         gradStyle = gradStyle + gradStyle_current;
         style_error = style_error_current;
     end
-	
+
     gradStyle = gradStyle ./ numStyleImages;
 	style_error = style_error / numStyleImages;
+%}
+    [gradStyle, style_error] = computeGradStyle(net, imNew, ...
+        EigenGramLayers, desiredLayers, desiredLayerWeights) ;
 
     %gradient for Content
     diffContent = imNew(L+1).x - imContentNetL;
@@ -230,7 +262,7 @@ for iter = 1:Niterations
       errDif  = prevError - errTotalI;
       if iter > 50 && (errDif < 0)
         step = annealFactor*step
-        if step < 1e-6
+        if step < tolerance
             disp('step is too small');
             break;
         end

@@ -5,4 +5,4 @@ gradWeights = gather(gradWeights);
 desiredLayers = gather(desiredLayers);
 %imwrite(imNewDisp, 'img.jpg');
 save('data.mat', 'imNewDisp', 'imContentDisp', 'imStyleDisp', 'err', 'plotIndices', 'avgImg', ...
-    'gradWeightsCpu', 'desiredLayers');
+    'gradWeights', 'desiredLayers', 'contentImage', 'styleImageList');
