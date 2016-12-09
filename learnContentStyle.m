@@ -32,7 +32,8 @@ imContentNetL = imContentNet(L+1).x;
 clear imContentNet;
 
 % load style images
-styleImageList = {'img/vg/vg1.jpg', 'img/warhol/warhol5.jpg'};
+styleImageList = {'img/vg/vg1.jpg', 'img/vg/vg2.jpg', 'img/vg/vg3.jpg', ...
+    'img/vg/vg4.jpg', 'img/vg/vg5.jpg'};
 numStyleImages = length(styleImageList);
 GramLayers = cell(lenDesiredLayers, 1);
 
@@ -83,7 +84,6 @@ for layerI = 1:lenDesiredLayers
   principal = U(:, 1) .* stdGram + meanGram;
   EigenGramLayers{layerI} = reshape(principal, sz(1), sz(2));
   
-
 end
 
 
