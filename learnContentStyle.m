@@ -3,16 +3,13 @@
 %run('[path to matconvnet files]/vl_setupnn');
 setup;
 
-%desired layers for style learning
+%esired layers for style learning
 desiredLayers = gpuArray([3 8 13 20 27]);
 desiredLayerWeights = gpuArray([1/5 1/5 1/5 1/5 1/5]);
 lenDesiredLayers = length(desiredLayers);
 %layer for content learning
 L = 27;
 
-%1 to use gradient style combination
-%0 to use eigenface style combination
-useGradientStyleCombination = 1;
 
 %load trained network
 if exist('net') ~= 1 
@@ -36,10 +33,13 @@ imContentNetL = imContentNet(L+1).x;
 clear imContentNet;
 
 % load style images
-styleImageList = {'img/vg/vg1.jpg', 'img/vg/vg2.jpg', 'img/vg/vg3.jpg', ...
-    'img/vg/vg4.jpg', 'img/vg/vg5.jpg'};
+%styleImageList = {'img/vg/vg1.jpg', 'img/vg/vg2.jpg', 'img/vg/vg3.jpg', ...
+% 'img/vg/vg4.jpg', 'img/vg/vg5.jpg'};
+styleImageList = {'img/warhol/warhol1.jpg', 'img/warhol/warhol2.jpg', 'img/warhol/warhol3.jpg', ...
+ 'img/warhol/warhol4.jpg', 'img/warhol/warhol5.jpg'};
 numStyleImages = length(styleImageList);
 GramLayers = cell(lenDesiredLayers, 1);
+
 
 %for each style image, store only Gram matrices of desired layers
 %GramLayers stores the gram matrixes of desired layers of a single image
@@ -47,8 +47,8 @@ GramLayers = cell(lenDesiredLayers, 1);
 %start from back to avoid array resizing of GramStyleList
 for i = fliplr(1 : numStyleImages)
 
-	im = imread(styleImageList{i});
-	imStyleScaled = bsxfun(@minus, single(im), avgImg);
+    im = imread(styleImageList{i});
+    imStyleScaled = bsxfun(@minus, single(im), avgImg);
     imStyleNet = vl_simplenn(net, gpuArray(imStyleScaled));
 
     for layerI = 1:lenDesiredLayers; 
@@ -64,31 +64,42 @@ for i = fliplr(1 : numStyleImages)
     end
 end
 
-clear imStyleNet;
-EigenGramLayers = cell(lenDesiredLayers, 1);
-
-for layerI = 1:lenDesiredLayers
-
-  l = desiredLayers(layerI);
-  sz = size(GramStyleList(1).GramLayers{layerI});
-  GramVectorizedMat = zeros(sz(1)*sz(2), numStyleImages, 'gpuArray');
-  %Each column of GramVectorizedMat is the vectorized gram matrix
-  % for a layer in an image
-  for i = 1:numStyleImages
-    GramVectorizedMat(:, i) = ...
-        reshape(GramStyleList(i).GramLayers{layerI}, sz(1)*sz(2), 1);
-  end
-  meanGram = mean(GramVectorizedMat, 2); 
-  GramVectorizedMat = bsxfun(@minus, GramVectorizedMat, meanGram);
-  stdGram = std(GramVectorizedMat, [], 2);
-  GramVectorizedMat = bsxfun(@rdivide, GramVectorizedMat, stdGram);
-
-  [U, S, ~] = svd(GramVectorizedMat, 'econ');
-
-  principal = U(:, 1) .* stdGram + meanGram;
-  EigenGramLayers{layerI} = reshape(principal, sz(1), sz(2));
-  
+%1 to use gradient style combination
+%0 to use eigenface style combination
+%must use grad style if num = 1
+useGradientStyleCombination = 0;
+if numStyleImages == 1
+    useGradientStyleCombination = 1;
 end
+
+if useGradientStyleCombination == 0
+  EigenGramLayers = cell(lenDesiredLayers, 1);
+
+  for layerI = 1:lenDesiredLayers
+
+    l = desiredLayers(layerI);
+    sz = size(GramStyleList(1).GramLayers{layerI});
+    GramVectorizedMat = zeros(sz(1)*sz(2), numStyleImages, 'gpuArray');
+    %Each column of GramVectorizedMat is the vectorized gram matrix
+    % for a layer in an image
+    for i = 1:numStyleImages
+      GramVectorizedMat(:, i) = ...
+          reshape(GramStyleList(i).GramLayers{layerI}, sz(1)*sz(2), 1);
+    end
+    meanGram = mean(GramVectorizedMat, 2); 
+    GramVectorizedMat = bsxfun(@minus, GramVectorizedMat, meanGram);
+    stdGram = std(GramVectorizedMat, [], 2);
+    GramVectorizedMat = bsxfun(@rdivide, GramVectorizedMat, stdGram);
+
+    [U, S, ~] = svd(GramVectorizedMat, 'econ');
+
+    principal = U(:, 1) .* stdGram + meanGram;
+    EigenGramLayers{layerI} = reshape(principal, sz(1), sz(2));
+    
+  end
+
+end %use GradCombination
+clear imStyleNet;
 
 
 %generate white noise image;
@@ -101,7 +112,7 @@ imNew = vl_simplenn(net, gpuArray(im0_));
 
 disp('generating new image');
 
-Niterations = 500;
+Niterations = 1000;
 %step decreases by annealFactor every so often
 annealFactor = gpuArray(0.5);
 
@@ -116,12 +127,28 @@ err = zeros(length(plotIndices), 1);
 plotI = 1;
 
 % [style content size variation]
-gradWeights = gpuArray([0.0005 1 0.05 0.1]);
+gradWeights = gpuArray([0.0001 1 0.1 0.1]);
+%gradWeights = gpuArray([0.0005 0 0.05 0.1]);
 gradWeights = gradWeights ./ sum(gradWeights);
 
 tolerance = 1e-5;
 
+%ADAM parameters:
+
+mPrev = zerosGpu;
+vPrev = zerosGpu;
+beta1 = gpuArray(0.9);
+beta2 = gpuArray(0.999);
+beta1Power = gpuArray(1);
+beta2Power = gpuArray(1);
+epsilon = gpuArray(1e-8);
+step = gpuArray(1); %gradient des step size
+
+
+
+
 % l-bfgs parameters
+%{
 step = gpuArray(0.1); %gradient des step size
 [h,w,d] = size(imNew(1).x);
 m =gpuArray(5);
@@ -131,9 +158,10 @@ alpha = zeros(1,m,'gpuArray');
 beta = zeros(1,m,'gpuArray');
 rou = zeros(1,m,'gpuArray');
 gradPrev = zeros(h*w*d,1,'gpuArray');
+%}
+
 
 for iter = 1:Niterations
-
     
     %gradient for style:
     gradStyle = zerosGpu;
@@ -148,7 +176,7 @@ for iter = 1:Niterations
         end
 
         gradStyle = gradStyle ./ numStyleImages;
-         style_error = style_error / numStyleImages;
+        style_error = style_error / numStyleImages;
     else
         [gradStyle, style_error] = computeGradStyle(net, imNew, ...
             EigenGramLayers, desiredLayers, desiredLayerWeights) ;
@@ -183,6 +211,7 @@ for iter = 1:Niterations
 
 
 % ============== l-bfgs update =======================================================   
+%{
     if(iter > 2)
         gradPrev = grad1d;
     end %if
@@ -243,13 +272,32 @@ for iter = 1:Niterations
         s(:,1:m-1) = s(:,2:m);
         s(:,m) = mtx2vec(imNew(1).x) - imPrev;
     end %if
+%}
+
 % =======================================================================
+
+%ADAM update ----------------
+
+    m = (beta1*mPrev + (1-beta1)*grad);
+    v = beta2*vPrev + (1-beta2)*(grad.^2);
+    mPrev = m;
+    vPrev = v;
+    beta1Power = beta1Power * beta1;
+    beta2Power = beta2Power * beta2;
+    m = m/(1-beta1Power);
+    v = v/(1-beta2Power);
+    update = m.*step./(sqrt(v)+epsilon);
+    imNew(1).x = imNew(1).x - update;
+
+
+%-----------------
 
     %reapply image on network
     imNew = vl_simplenn(net, imNew(1).x);
 
     % record error if desired
     if iter == plotIndices(plotI) 
+
       errorsI = zeros(4, 1, 'gpuArray');
       errorsI(1) = style_error; 
       errorsI(2) = 0.5*sumsqr(diffContent);
@@ -284,6 +332,5 @@ img = uint8(imNew(1).x);
 img = gather(img);
 save('img1.mat','img');
 
-plotter;
-
+saveData
 
